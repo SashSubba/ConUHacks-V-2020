@@ -7,8 +7,9 @@ import ssl as ssl_lib
 import certifi
 from onboarding_tutorial import OnboardingTutorial
 
-SLACK_API_TOKEN = "xoxb-923929175703-910617428419-LmY9FsB1LpV0wTj3g31tqMnX"
-SLACK_SIGNING_SECRET = "e6a22c8e900ccc70f51f7f09fde585ae"
+SLACK_BOT_TOKEN='xoxb-910753403795-910754438179-QwKKpt6B4ctpxAXdtGF2RdF3'
+SLACK_SIGNING_SECRET='fefff8b45cd857d666eb94bc9b725e05'
+
 
 # Initialize a Flask app to host the events adapter
 app = Flask(__name__)
