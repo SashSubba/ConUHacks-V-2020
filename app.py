@@ -6,7 +6,6 @@ from slackeventsapi import SlackEventAdapter
 import ssl as ssl_lib
 import certifi
 import pandas as pd
-from onboarding_tutorial import OnboardingTutorial
 
 SLACK_API_TOKEN = "xoxb-923929175703-910617428419-LmY9FsB1LpV0wTj3g31tqMnX"
 SLACK_SIGNING_SECRET = "e6a22c8e900ccc70f51f7f09fde585ae"
@@ -34,12 +33,11 @@ def message(payload):
     """
     event = payload.get("event", {})
     channel_id = event.get("channel")
-    slack_web_client.api_call("chat.postMessage", channel=payload["event"]["channel"], text="Test output")
     user_id = event.get("user")
     text = event.get("text")
 
     if text and text.lower() == "test":
-        slack_web_client.api_call("chat.postMessage", channel=payload["event"]["channel"], text="Test output")
+        slack_web_client.api_call("chat.postMessage", channel="general", text="Test output")
 
     if text and text.lower() == "show table":
         slack_web_client.api_call("chat.postMessage", channel="general", text=df.to_csv(sep=' ', index=False, header=False))
