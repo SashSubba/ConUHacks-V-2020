@@ -1,11 +1,12 @@
 import os
+import json
 import logging
-from flask import Flask
+from flask import Flask, request, make_response, Response
 from slackclient import SlackClient
 from slackeventsapi import SlackEventAdapter
 import ssl as ssl_lib
 import certifi
-from onboarding_tutorial import OnboardingTutorial
+from carpool_request import carpoolRequest
 
 SLACK_API_TOKEN = "xoxb-924426662630-922241501269-NKPAtLMsVFwRKB1SOTfwlgDA"
 SLACK_SIGNING_SECRET = "14f9215c359a9134c404191ca9d4cb23"
@@ -18,113 +19,113 @@ slack_events_adapter = SlackEventAdapter(SLACK_SIGNING_SECRET, "/slack/events", 
 slack_token = SLACK_API_TOKEN
 slack_web_client = SlackClient(slack_token)
 
-# For simplicity we'll store our app data in-memory with the following data structure.
-# onboarding_tutorials_sent = {"channel": {"user_id": OnboardingTutorial}}
-onboarding_tutorials_sent = {}
+carpool_request = carpoolRequest("general")
 
+# Get the onboarding message payload
+message = carpool_request.get_message_payload()
 
-def start_onboarding(user_id: str, channel: str):
-    # Create a new onboarding tutorial.
-    onboarding_tutorial = OnboardingTutorial(channel)
+## Dictionary to store coffee orders. In the real world, you'd want an actual key-value store
+COFFEE_ORDERS = {}
 
-    # Get the onboarding message payload
-    message = onboarding_tutorial.get_message_payload()
+# Send a message to the user asking if they would like coffee
+user_id = "UT62ALXQF"
 
-    # Post the onboarding message in Slack
-    response = slack_web_client.chat_postMessage(**message)
+order_dm = slack_web_client.api_call(
+  "chat.postMessage",
+  as_user=True,
+  channel=user_id,
+  text="I am Coffeebot, and I\'m here to help bring you fresh coffee :coffee:",
+  attachments=[{
+    "text": "",
+    "callback_id": user_id + "coffee_order_form",
+    "color": "#3AA3E3",
+    "attachment_type": "default",
+    "actions": [{
+      "name": "coffee_order",
+      "text": ":coffee: Order Coffee",
+      "type": "button",
+      "value": "coffee_order"
+    }]
+  }]
+)
 
-    # Capture the timestamp of the message we've just posted so
-    # we can use it to update the message after a user
-    # has completed an onboarding task.
-    onboarding_tutorial.timestamp = response["ts"]
+COFFEE_ORDERS[user_id] = {
+    "order_channel": order_dm["channel"],
+    "message_ts": "",
+    "order": {}
+}
 
-    # Store the message sent in onboarding_tutorials_sent
-    if channel not in onboarding_tutorials_sent:
-        onboarding_tutorials_sent[channel] = {}
-    onboarding_tutorials_sent[channel][user_id] = onboarding_tutorial
+@app.route("/slack/message_actions", methods=["POST"])
+def message_actions():
+    # Parse the request payload
+    message_action = json.loads(request.form["payload"])
+    user_id = message_action["user"]["id"]
 
+    if message_action["type"] == "interactive_message":
+        # Add the message_ts to the user's order info
+        COFFEE_ORDERS[user_id]["message_ts"] = message_action["message_ts"]
 
-# ================ Team Join Event =============== #
-# When the user first joins a team, the type of the event will be 'team_join'.
-# Here we'll link the onboarding_message callback to the 'team_join' event.
-@slack_events_adapter.on("team_join")
-def onboarding_message(payload):
-    """Create and send an onboarding welcome message to new users. Save the
-    time stamp of this message so we can update this message in the future.
-    """
-    event = payload.get("event", {})
+        # Show the ordering dialog to the user
+        open_dialog = slack_web_client.api_call(
+            "dialog.open",
+            trigger_id=message_action["trigger_id"],
+            dialog={
+                "title": "Request a coffee",
+                "submit_label": "Submit",
+                "callback_id": user_id + "coffee_order_form",
+                "elements": [
+                    {
+                        "label": "Coffee Type",
+                        "type": "select",
+                        "name": "meal_preferences",
+                        "placeholder": "Select a drink",
+                        "options": [
+                            {
+                                "label": "Cappuccino",
+                                "value": "cappuccino"
+                            },
+                            {
+                                "label": "Latte",
+                                "value": "latte"
+                            },
+                            {
+                                "label": "Pour Over",
+                                "value": "pour_over"
+                            },
+                            {
+                                "label": "Cold Brew",
+                                "value": "cold_brew"
+                            }
+                        ]
+                    }
+                ]
+            }
+        )
 
-    # Get the id of the Slack user associated with the incoming event
-    user_id = event.get("user", {}).get("id")
+        print(open_dialog)
 
-    # Open a DM with the new user.
-    response = slack_web_client.im_open(user_id)
-    channel = response["channel"]["id"]
+        # Update the message to show that we're in the process of taking their order
+        slack_web_client.api_call(
+            "chat.update",
+            channel=COFFEE_ORDERS[user_id]["order_channel"],
+            ts=message_action["message_ts"],
+            text=":pencil: Taking your order...",
+            attachments=[]
+        )
 
-    # Post the onboarding message.
-    start_onboarding(user_id, channel)
+    elif message_action["type"] == "dialog_submission":
+        coffee_order = COFFEE_ORDERS[user_id]
 
+        # Update the message to show that we're in the process of taking their order
+        slack_web_client.api_call(
+            "chat.update",
+            channel=COFFEE_ORDERS[user_id]["order_channel"],
+            ts=coffee_order["message_ts"],
+            text=":white_check_mark: Order received!",
+            attachments=[]
+        )
 
-# ============= Reaction Added Events ============= #
-# When a users adds an emoji reaction to the onboarding message,
-# the type of the event will be 'reaction_added'.
-# Here we'll link the update_emoji callback to the 'reaction_added' event.
-@slack_events_adapter.on("reaction_added")
-def update_emoji(payload):
-    """Update the onboarding welcome message after receiving a "reaction_added"
-    event from Slack. Update timestamp for welcome message as well.
-    """
-    event = payload.get("event", {})
-
-    channel_id = event.get("item", {}).get("channel")
-    user_id = event.get("user")
-
-    if channel_id not in onboarding_tutorials_sent:
-        return
-
-    # Get the original tutorial sent.
-    onboarding_tutorial = onboarding_tutorials_sent[channel_id][user_id]
-
-    # Mark the reaction task as completed.
-    onboarding_tutorial.reaction_task_completed = True
-
-    # Get the new message payload
-    message = onboarding_tutorial.get_message_payload()
-
-    # Post the updated message in Slack
-    updated_message = slack_web_client.chat_update(**message)
-
-    # Update the timestamp saved on the onboarding tutorial object
-    onboarding_tutorial.timestamp = updated_message["ts"]
-
-
-# =============== Pin Added Events ================ #
-# When a users pins a message the type of the event will be 'pin_added'.
-# Here we'll link the update_pin callback to the 'reaction_added' event.
-@slack_events_adapter.on("pin_added")
-def update_pin(payload):
-    """Update the onboarding welcome message after receiving a "pin_added"
-    event from Slack. Update timestamp for welcome message as well.
-    """
-    event = payload.get("event", {})
-
-    channel_id = event.get("channel_id")
-    user_id = event.get("user")
-
-    # Get the original tutorial sent.
-    onboarding_tutorial = onboarding_tutorials_sent[channel_id][user_id]
-
-    # Mark the pin task as completed.
-    onboarding_tutorial.pin_task_completed = True
-
-    # Get the new message payload
-    message = onboarding_tutorial.get_message_payload()
-
-    # Post the updated message in Slack
-    updated_message = slack_web_client.chat_update(**message)
-
-    # Update the timestamp saved on the onboarding tutorial object
-    onboarding_tutorial.timestamp = updated_message["ts"]
+    return make_response("", 200)
 
 
 # ============== Message Events ============= #
@@ -141,17 +142,90 @@ def message(payload):
     user_id = event.get("user")
     text = event.get("text")
 
-    if text and text.lower() == "start":
-        return start_onboarding(user_id, channel_id)
-
-    if text and text.lower() == "yes":
-        return "hello"
-
-    if text and text.lower() == "no":
-        return print("bye")
-
     if text and text.lower() == "daddy":
         slack_web_client.api_call("chat.postMessage", channel="general", text="GANG")
+
+
+
+@slack_events_adapter.on("message")
+def message2(payload):
+    """Display the onboarding welcome message after receiving a message
+    that contains "start".
+    """
+    event = payload.get("event", {})
+
+    channel_id = event.get("channel")
+    user_id = event.get("user")
+    text = event.get("text")
+
+    if text and text.lower() == "request":
+        slack_web_client.api_call("chat.postMessage", channel="general", text="GANG2")
+        slack_web_client.chat_postMessage(channel="general",
+                                          blocks=[
+                                              {
+                                                  "type": "modal",
+                                                  "title": {
+                                                      "type": "plain_text",
+                                                      "text": "My App",
+                                                      "emoji": True
+                                                  },
+                                                  "submit": {
+                                                      "type": "plain_text",
+                                                      "text": "Submit",
+                                                      "emoji": True
+                                                  },
+                                                  "close": {
+                                                      "type": "plain_text",
+                                                      "text": "Cancel",
+                                                      "emoji": True
+                                                  },
+                                                  "blocks": [
+                                                      {
+                                                          "type": "input",
+                                                          "element": {
+                                                              "type": "plain_text_input",
+                                                              "action_id": "sl_input",
+                                                              "placeholder": {
+                                                                  "type": "plain_text",
+                                                                  "text": "Placeholder text for single-line input"
+                                                              }
+                                                          },
+                                                          "label": {
+                                                              "type": "plain_text",
+                                                              "text": "Label"
+                                                          },
+                                                          "hint": {
+                                                              "type": "plain_text",
+                                                              "text": "Hint text"
+                                                          }
+                                                      },
+                                                      {
+                                                          "type": "input",
+                                                          "element": {
+                                                              "type": "plain_text_input",
+                                                              "action_id": "ml_input",
+                                                              "multiline": True,
+                                                              "placeholder": {
+                                                                  "type": "plain_text",
+                                                                  "text": "Placeholder text for multi-line input"
+                                                              }
+                                                          },
+                                                          "label": {
+                                                              "type": "plain_text",
+                                                              "text": "Label"
+                                                          },
+                                                          "hint": {
+                                                              "type": "plain_text",
+                                                              "text": "Hint text"
+                                                          }
+                                                      }
+                                                  ]
+                                              }
+                                          ]
+
+
+
+                                          )
 
 
 if __name__ == "__main__":
