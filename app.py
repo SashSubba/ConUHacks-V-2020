@@ -141,17 +141,16 @@ def message(payload):
     user_id = event.get("user")
     text = event.get("text")
 
-
     if text and text.lower() == "start":
         return start_onboarding(user_id, channel_id)
 
-    if text and text.lover() == "yes":
+    if text and text.lower() == "yes":
         return "hello"
 
-    if text and text.lover() == "no":
+    if text and text.lower() == "no":
         return print("bye")
 
-    if text and text.lover() == "daddy":
+    if text and text.lower() == "daddy":
         slack_web_client.api_call("chat.postMessage", channel="general", text="GANG")
 
 
