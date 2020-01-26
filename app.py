@@ -145,6 +145,15 @@ def message(payload):
     if text and text.lower() == "start":
         return start_onboarding(user_id, channel_id)
 
+    if text and text.lover() == "yes":
+        return "hello"
+
+    if text and text.lover() == "no":
+        return print("bye")
+
+    if text and text.lover() == "daddy":
+        slack_web_client.api_call("chat.postMessage", channel="general", text="GANG")
+
 
 if __name__ == "__main__":
     logger = logging.getLogger()
