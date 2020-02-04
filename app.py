@@ -31,22 +31,22 @@ COFFEE_ORDERS = {}
 user_id = "UT62ALXQF"
 
 order_dm = slack_web_client.api_call(
-  "chat.postMessage",
-  as_user=True,
-  channel=user_id,
-  text="I am Coffeebot, and I\'m here to help bring you fresh coffee :coffee:",
-  attachments=[{
-    "text": "",
-    "callback_id": user_id + "coffee_order_form",
-    "color": "#3AA3E3",
-    "attachment_type": "default",
-    "actions": [{
-      "name": "coffee_order",
-      "text": ":coffee: Order Coffee",
-      "type": "button",
-      "value": "coffee_order"
+    "chat.postMessage",
+    as_user=True,
+    channel=user_id,
+    text="I am Coffeebot, and I\'m here to help bring you fresh coffee :coffee:",
+    attachments=[{
+        "text": "",
+        "callback_id": user_id + "coffee_order_form",
+        "color": "#3AA3E3",
+        "attachment_type": "default",
+        "actions": [{
+            "name": "coffee_order",
+            "text": ":coffee: Order Coffee",
+            "type": "button",
+            "value": "coffee_order"
+        }]
     }]
-  }]
 )
 
 COFFEE_ORDERS[user_id] = {
@@ -54,6 +54,7 @@ COFFEE_ORDERS[user_id] = {
     "message_ts": "",
     "order": {}
 }
+
 
 @app.route("/slack/message_actions", methods=["POST"])
 def message_actions():
@@ -146,7 +147,6 @@ def message(payload):
         slack_web_client.api_call("chat.postMessage", channel="general", text="GANG")
 
 
-
 @slack_events_adapter.on("message")
 def message2(payload):
     """Display the onboarding welcome message after receiving a message
@@ -160,72 +160,70 @@ def message2(payload):
 
     if text and text.lower() == "request":
         slack_web_client.api_call("chat.postMessage", channel="general", text="GANG2")
-        slack_web_client.chat_postMessage(channel="general",
-                                          blocks=[
+        slack_web_client.api_call("chat.postMessage", channel="general",
+                                  blocks=[
+                                      {
+                                          "type": "modal",
+                                          "title": {
+                                              "type": "plain_text",
+                                              "text": "My App",
+                                              "emoji": True
+                                          },
+                                          "submit": {
+                                              "type": "plain_text",
+                                              "text": "Submit",
+                                              "emoji": True
+                                          },
+                                          "close": {
+                                              "type": "plain_text",
+                                              "text": "Cancel",
+                                              "emoji": True
+                                          },
+                                          "blocks": [
                                               {
-                                                  "type": "modal",
-                                                  "title": {
-                                                      "type": "plain_text",
-                                                      "text": "My App",
-                                                      "emoji": True
-                                                  },
-                                                  "submit": {
-                                                      "type": "plain_text",
-                                                      "text": "Submit",
-                                                      "emoji": True
-                                                  },
-                                                  "close": {
-                                                      "type": "plain_text",
-                                                      "text": "Cancel",
-                                                      "emoji": True
-                                                  },
-                                                  "blocks": [
-                                                      {
-                                                          "type": "input",
-                                                          "element": {
-                                                              "type": "plain_text_input",
-                                                              "action_id": "sl_input",
-                                                              "placeholder": {
-                                                                  "type": "plain_text",
-                                                                  "text": "Placeholder text for single-line input"
-                                                              }
-                                                          },
-                                                          "label": {
-                                                              "type": "plain_text",
-                                                              "text": "Label"
-                                                          },
-                                                          "hint": {
-                                                              "type": "plain_text",
-                                                              "text": "Hint text"
-                                                          }
-                                                      },
-                                                      {
-                                                          "type": "input",
-                                                          "element": {
-                                                              "type": "plain_text_input",
-                                                              "action_id": "ml_input",
-                                                              "multiline": True,
-                                                              "placeholder": {
-                                                                  "type": "plain_text",
-                                                                  "text": "Placeholder text for multi-line input"
-                                                              }
-                                                          },
-                                                          "label": {
-                                                              "type": "plain_text",
-                                                              "text": "Label"
-                                                          },
-                                                          "hint": {
-                                                              "type": "plain_text",
-                                                              "text": "Hint text"
-                                                          }
+                                                  "type": "input",
+                                                  "element": {
+                                                      "type": "plain_text_input",
+                                                      "action_id": "sl_input",
+                                                      "placeholder": {
+                                                          "type": "plain_text",
+                                                          "text": "Placeholder text for single-line input"
                                                       }
-                                                  ]
+                                                  },
+                                                  "label": {
+                                                      "type": "plain_text",
+                                                      "text": "Label"
+                                                  },
+                                                  "hint": {
+                                                      "type": "plain_text",
+                                                      "text": "Hint text"
+                                                  }
+                                              },
+                                              {
+                                                  "type": "input",
+                                                  "element": {
+                                                      "type": "plain_text_input",
+                                                      "action_id": "ml_input",
+                                                      "multiline": True,
+                                                      "placeholder": {
+                                                          "type": "plain_text",
+                                                          "text": "Placeholder text for multi-line input"
+                                                      }
+                                                  },
+                                                  "label": {
+                                                      "type": "plain_text",
+                                                      "text": "Label"
+                                                  },
+                                                  "hint": {
+                                                      "type": "plain_text",
+                                                      "text": "Hint text"
+                                                  }
                                               }
                                           ]
+                                      }
+                                  ]
 
-
-
-                                          )
+                                  )
 
 
 if __name__ == "__main__":
